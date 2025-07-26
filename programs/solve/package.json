@@ -1,0 +1,12 @@
+{
+    "name": "solve",
+    "version": "0.0.1",
+    "scripts": {
+      "build": "RUSTUP_TOOLCHAIN=1.78.0 anchor build --arch sbf",
+      "test": "cargo test -p solve --lib",
+      "format": "cargo clippy -p solve --fix --allow-dirty --allow-staged && cargo fmt -p solve",
+      "lint": "cargo clippy -p solve && cargo fmt --check -p solve",
+      "clean": "anchor clean"
+    }
+  }
+  
