@@ -46,6 +46,11 @@ anchor build                             # default build
 anchor build -- --features fast-epochs   # devnet rehearsal build
 ```
 
+## TypeScript SDK
+
+[solve3fi/sdk](https://github.com/solve3fi/sdk) is the Apache-2.0 TypeScript client for this program, derived from Orca's
+last Apache-2.0 SDK. It adds the `solves_config` account to swaps and liquidity changes.
+
 ## Security
 
 Contact: admin@solve3.fi. Please do not disclose vulnerabilities publicly before we have had a chance to fix them.
