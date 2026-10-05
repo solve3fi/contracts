@@ -6,6 +6,7 @@ use crate::{
     },
 };
 use anchor_lang::prelude::*;
+use bitflags::bitflags;
 
 use super::gate::{self, GateState, MAX_GATE_PHI_PPM};
 use super::SolvesConfig;
@@ -189,7 +190,7 @@ impl Solve {
     fn set_gauge_unearned_x64(&mut self, value: u128) {
         let mut extension = self.extension_segment_primary();
         extension.reserved[8..24].copy_from_slice(&value.to_le_bytes());
-        self.reward_infos[1].extension = extension.to_bytes();
+        self.reward_infos[1].authority = Pubkey::from(extension.to_bytes());
     }
 
     /// Seconds of [last update, next_timestamp) that are earnable (liquidity
@@ -258,6 +259,9 @@ impl Solve {
         if index >= NUM_REWARDS {
             return Err(ErrorCode::InvalidRewardIndex.into());
         }
+        // Slots 1 and 2 of a gauge-managed pool hold the schedule and the gate,
+        // not an authority; nobody may overwrite them.
+        require!(!(index != 0 && self.has_gauge_reward()), ErrorCode::GaugeRewardManaged);
         self.reward_infos[index].authority = authority;
 
         Ok(())
@@ -366,6 +370,97 @@ impl Solve {
         self.protocol_fee_owed_a = 0;
         self.protocol_fee_owed_b = 0;
     }
+
+    /// Slot 1's authority bytes hold the gauge schedule segment.
+    pub fn extension_segment_primary(&self) -> SolveExtensionSegmentPrimary {
+        SolveExtensionSegmentPrimary::from_bytes(&self.reward_infos[1].authority.to_bytes())
+    }
+
+    /// Gauge emissions use reward slot 0. Slots 1 and 2 are the schedule and the
+    /// activity gate, stored in their authority bytes; a managed pool is
+    /// recognised by a valid gate in slot 2 plus the managed flag in slot 1.
+    pub fn has_gauge_reward(&self) -> bool {
+        GateState::from_bytes(&self.reward_infos[2].authority.to_bytes()).is_some()
+            && self
+                .extension_segment_primary()
+                .control_flags()
+                .contains(SolveControlFlags::GAUGE_REWARD_MANAGED)
+    }
+
+    /// The activity gate, if this pool is gauge-managed.
+    pub fn gate_state(&self) -> Option<GateState> {
+        if !self.has_gauge_reward() {
+            return None;
+        }
+        GateState::from_bytes(&self.reward_infos[2].authority.to_bytes())
+    }
+
+    fn set_gate_state(&mut self, gate: GateState) {
+        self.reward_infos[2].authority = Pubkey::from(gate.to_bytes());
+    }
+
+    pub fn record_gate_yield(&mut self, y: u64) {
+        if let Some(mut gate) = self.gate_state() {
+            gate.add_yield(y);
+            self.set_gate_state(gate);
+        }
+    }
+
+    pub fn gauge_reward_end_timestamp(&self) -> Option<u64> {
+        self.has_gauge_reward().then(|| {
+            u64::from_le_bytes(self.reward_infos[1].authority.to_bytes()[2..10].try_into().unwrap())
+        })
+    }
+
+    /// `gate_phi_ppm`: activity-gate threshold in parts per million of the pool's
+    /// capital per hour; 0 disables the gate.
+    pub fn set_gauge_reward_schedule(
+        &mut self,
+        mint: Pubkey,
+        vault: Pubkey,
+        rate: u128,
+        end: u64,
+        now: u64,
+        gate_phi_ppm: u32,
+    ) -> Result<()> {
+        require!(gate_phi_ppm <= MAX_GATE_PHI_PPM, ErrorCode::InvalidTimestamp);
+        if self.has_gauge_reward() {
+            require!(
+                self.reward_infos[0].mint == mint && self.reward_infos[0].vault == vault,
+                ErrorCode::GaugeRewardManaged
+            );
+        } else {
+            // Never overwrite an existing third-party reward: its slot, and the
+            // authority bytes of slots 1 and 2 that we are about to repurpose, must be unused.
+            let reward = &self.reward_infos[0];
+            require!(
+                !reward.initialized()
+                    && reward.vault == Pubkey::default()
+                    && reward.growth_global_x64 == 0
+                    && reward.emissions_per_second_x64 == 0,
+                ErrorCode::GaugeRewardManaged
+            );
+            require!(
+                !self.reward_infos[1].initialized() && !self.reward_infos[2].initialized(),
+                ErrorCode::GaugeRewardMigrationRequired
+            );
+        }
+        let mut extension = if self.has_gauge_reward() {
+            self.extension_segment_primary()
+        } else {
+            SolveExtensionSegmentPrimary::new(SolveControlFlags::empty())
+        };
+        extension.control_flags |= SolveControlFlags::GAUGE_REWARD_MANAGED.bits();
+        extension.reserved[..8].copy_from_slice(&end.to_le_bytes());
+        self.reward_infos[1].authority = Pubkey::from(extension.to_bytes());
+        self.reward_infos[0].mint = mint;
+        self.reward_infos[0].vault = vault;
+        self.reward_infos[0].emissions_per_second_x64 = rate;
+        let mut gate = self.gate_state().unwrap_or_else(|| GateState::new(now, gate_phi_ppm));
+        gate.phi_ppm = gate_phi_ppm;
+        self.set_gate_state(gate);
+        Ok(())
+    }
 }
 
 /// Stores the state relevant for tracking liquidity mining rewards at the `Solve` level.
@@ -411,6 +506,51 @@ impl SolveRewardInfo {
             reward_growths[i] = reward_infos[i].growth_global_x64;
         }
         reward_growths
+    }
+}
+
+#[derive(Copy, Clone, Default, Debug, PartialEq)]
+pub struct SolveControlFlags(u16);
+
+bitflags! {
+    impl SolveControlFlags: u16 {
+        const GAUGE_REWARD_MANAGED = 0b0000_0000_0000_0010;
+    }
+}
+
+/// 32-byte gauge schedule segment, kept in reward slot 1's authority bytes:
+/// control flags (u16 LE), then 30 reserved bytes: [0..8] schedule end
+/// timestamp, [8..24] unearned emissions (Q64.64).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SolveExtensionSegmentPrimary {
+    pub control_flags: u16,
+    pub reserved: [u8; 30],
+}
+
+impl SolveExtensionSegmentPrimary {
+    pub fn new(control_flags: SolveControlFlags) -> Self {
+        Self {
+            control_flags: control_flags.bits(),
+            reserved: [0; 30],
+        }
+    }
+
+    pub fn from_bytes(bytes: &[u8; 32]) -> Self {
+        Self {
+            control_flags: u16::from_le_bytes([bytes[0], bytes[1]]),
+            reserved: bytes[2..32].try_into().unwrap(),
+        }
+    }
+
+    pub fn to_bytes(&self) -> [u8; 32] {
+        let mut bytes = [0u8; 32];
+        bytes[0..2].copy_from_slice(&self.control_flags.to_le_bytes());
+        bytes[2..32].copy_from_slice(&self.reserved);
+        bytes
+    }
+
+    pub fn control_flags(&self) -> SolveControlFlags {
+        SolveControlFlags::from_bits_truncate(self.control_flags)
     }
 }
 

@@ -5,7 +5,7 @@ use crate::{errors::ErrorCode, manager::solve_manager::next_solve_reward_infos, 
 pub const GAUGE_REWARD_VAULT_SEED: &[u8] = b"gauge_reward_vault";
 
 pub fn gauge_reward_authority() -> Pubkey {
-    Pubkey::find_program_address(&[b"protocol"], &pubkey!("HUk7bMPwzxgJyrjrTsLZjZVuLj5YDbm3bgfL9MA1r3us")).0
+    Pubkey::find_program_address(&[b"protocol"], &pubkey!("HMqzJpD85Z74R1vhor9LWm6KFhK6tYVChzjzyBRyjUmN")).0
 }
 
 #[derive(Accounts)]

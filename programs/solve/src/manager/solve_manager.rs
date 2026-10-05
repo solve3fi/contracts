@@ -227,9 +227,11 @@ mod native_gauge_tests {
     fn enabling_requires_unused_reward_and_migrated_extension() {
         let mut pool = Solve::default();
         assert!(pool.update_protocol_fee_rate(10_000).is_err());
-        pool.reward_infos[2].extension[0] = 1;
+        // slots 1 and 2 hold their authority bytes, which a schedule would overwrite:
+        // a third-party reward already living there blocks enabling.
+        pool.reward_infos[2].mint = Pubkey::new_unique();
         assert!(pool.set_gauge_reward_schedule(Pubkey::new_unique(), Pubkey::new_unique(), 0, 0, 0, 0).is_err());
-        pool.reward_infos[2].extension = [0; 32];
+        pool.reward_infos[2].mint = Pubkey::default();
         pool.reward_infos[0].mint = Pubkey::new_unique();
         assert!(pool.set_gauge_reward_schedule(Pubkey::new_unique(), Pubkey::new_unique(), 0, 0, 0, 0).is_err());
         let mut managed = super::native_gauge_tests::pool();

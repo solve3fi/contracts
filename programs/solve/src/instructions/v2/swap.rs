@@ -242,6 +242,7 @@ pub fn swap_with_transfer_fee_extension<'info>(
             next_fee_growth_global: swap_update.next_fee_growth_global,
             next_reward_infos: swap_update.next_reward_infos,
             next_protocol_fee: swap_update.next_protocol_fee,
+            gate_fee_value_b: swap_update.gate_fee_value_b,
         });
     }
 
@@ -292,5 +293,6 @@ pub fn swap_with_transfer_fee_extension<'info>(
         next_fee_growth_global: swap_update.next_fee_growth_global,
         next_reward_infos: swap_update.next_reward_infos,
         next_protocol_fee: swap_update.next_protocol_fee,
+        gate_fee_value_b: swap_update.gate_fee_value_b,
     })
 }

@@ -146,12 +146,6 @@ pub enum ErrorCode {
 
     #[msg("Trade resulted in partial fill")]
     PartialFillError, // 0x17a9 (6057)
-}
-
-impl From<TryFromIntError> for ErrorCode {
-    fn from(_: TryFromIntError) -> Self {
-        ErrorCode::NumberCastError
-    }
 
     #[msg("Gauge reward slot is managed by the governance program")]
     GaugeRewardManaged,
@@ -165,4 +159,10 @@ impl From<TryFromIntError> for ErrorCode {
     LiquidityIncreasesPaused,
     #[msg("Both pools of a two-hop swap must belong to the same config")]
     SolvesConfigMismatch,
+}
+
+impl From<TryFromIntError> for ErrorCode {
+    fn from(_: TryFromIntError) -> Self {
+        ErrorCode::NumberCastError
+    }
 }

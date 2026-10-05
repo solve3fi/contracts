@@ -22,6 +22,9 @@ pub struct PostSwapUpdate {
     pub next_fee_growth_global: u128,
     pub next_reward_infos: [SolveRewardInfo; NUM_REWARDS],
     pub next_protocol_fee: u64,
+    /// Value of this swap's fees in token B (raw units), for the pool's activity
+    /// gate. The caller divides by the pool's vault value to get a yield.
+    pub gate_fee_value_b: u128,
 }
 
 pub fn swap(
@@ -121,6 +124,12 @@ pub fn swap(
                 .checked_add(swap_computation.fee_amount)
                 .ok_or(ErrorCode::AmountCalcOverflow)?;
         }
+
+        gate_fee_value_b = gate_fee_value_b.saturating_add(crate::state::gate::step_fee_value_b(
+            swap_computation.fee_amount,
+            curr_sqrt_price,
+            a_to_b,
+        ));
 
         let (next_protocol_fee, next_fee_growth_global_input) = calculate_fees(
             swap_computation.fee_amount,
@@ -225,6 +234,7 @@ pub fn swap(
         next_fee_growth_global: curr_fee_growth_global_input,
         next_reward_infos,
         next_protocol_fee: curr_protocol_fee,
+        gate_fee_value_b,
     })
 }
 

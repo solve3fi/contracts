@@ -72,6 +72,10 @@ pub struct TwoHopSwap<'info> {
     #[account(seeds = [b"oracle", solve_two.key().as_ref()],bump)]
     /// CHECK: Oracle is currently unused and will be enabled on subsequent updates
     pub oracle_two: UncheckedAccount<'info>,
+
+    /// Trading pause switches live in the config's feature flags.
+    #[account(address = solve_one.solves_config)]
+    pub solves_config: Account<'info, crate::state::SolvesConfig>,
 }
 
 #[allow(clippy::too_many_arguments)]

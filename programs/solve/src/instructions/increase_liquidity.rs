@@ -44,6 +44,10 @@ pub struct ModifyLiquidity<'info> {
     pub tick_array_lower: AccountLoader<'info, TickArray>,
     #[account(mut, has_one = solve)]
     pub tick_array_upper: AccountLoader<'info, TickArray>,
+
+    /// Trading pause switches live in the config's feature flags.
+    #[account(address = solve.solves_config)]
+    pub solves_config: Account<'info, crate::state::SolvesConfig>,
 }
 
 pub fn handler(
