@@ -52,6 +52,9 @@ Contact: admin@solve3.fi. Please do not disclose vulnerabilities publicly before
 
 Orca's audits cover Orca's code. Solve3's modifications and additions have not been independently audited.
 
+The ve(3,3) governance programs (SOLVE token, core ve(3,3) logic, veSOLVE) were assessed by LedgerOps in 2026; the
+report is in [`docs/audits`](docs/audits/README.md). That assessment does not cover this swap program.
+
 ## Community
 
 [solve3.fi](https://solve3.fi) · [X](https://x.com/solve3fi) · [Discord](https://discord.gg/ZDyXeyjGc7) · [GitHub](https://github.com/solve3fi)
