@@ -12,18 +12,6 @@ The on-chain DEX program for [Solve3](https://solve3.fi), a vote-escrow (ve(3,3)
 
 Solve3 is not affiliated with or endorsed by Orca. "Orca" and "Whirlpool" are trademarks of their owners.
 
-## Status
-
-**Work in progress. Do not deploy.** This branch is the result of rolling the program back onto Orca's last Apache-2.0
-code and re-applying Solve3's own changes on top. At the time of writing:
-
-- the Orca-derived base and the Solve3-specific files are in place;
-- the Solve3 additions that touch pool and config state are being re-implemented on the older account layout, so
-  the program **does not compile yet**;
-- it has **not been audited**. Orca's audits cover Orca's code, not this fork or our additions.
-
-Do not use this code for a mainnet deployment until it builds, passes the test suite, and has been reviewed.
-
 ## What this program is
 
 A concentrated-liquidity AMM (a Whirlpool-style CLMM): liquidity providers choose price ranges, pools have fee
@@ -51,16 +39,18 @@ arrays, swap engine, position bundles, Token-2022 support and two-hop swaps are 
 
 ## Building
 
-Requires the Rust toolchain pinned in `rust-toolchain.toml` and the Anchor CLI. Once the program compiles:
+Requires the Rust toolchain pinned in `rust-toolchain.toml` and the Anchor CLI.
 
 ```sh
-anchor build                       # default build
+anchor build                             # default build
 anchor build -- --features fast-epochs   # devnet rehearsal build
 ```
 
 ## Security
 
 Contact: admin@solve3.fi. Please do not disclose vulnerabilities publicly before we have had a chance to fix them.
+
+Orca's audits cover Orca's code. Solve3's modifications and additions have not been independently audited.
 
 ## Community
 
