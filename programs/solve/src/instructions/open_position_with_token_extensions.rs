@@ -73,6 +73,13 @@ pub fn handler(
         tick_upper_index,
     )?;
 
+    emit!(crate::events::PositionOpened {
+        solve: solve.key(),
+        position: position.key(),
+        tick_lower_index,
+        tick_upper_index,
+    });
+
     initialize_position_mint_2022(
         position_mint,
         &ctx.accounts.funder,

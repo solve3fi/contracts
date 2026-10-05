@@ -155,5 +155,17 @@ pub fn handler<'info>(
         transfer_fee_included_delta_b.amount,
     )?;
 
+    emit!(crate::events::LiquidityIncreased {
+        solve: ctx.accounts.solve.key(),
+        position: ctx.accounts.position.key(),
+        tick_lower_index: ctx.accounts.position.tick_lower_index,
+        tick_upper_index: ctx.accounts.position.tick_upper_index,
+        liquidity: liquidity_amount,
+        token_a_amount: transfer_fee_included_delta_a.amount,
+        token_b_amount: transfer_fee_included_delta_b.amount,
+        token_a_transfer_fee: transfer_fee_included_delta_a.transfer_fee,
+        token_b_transfer_fee: transfer_fee_included_delta_b.transfer_fee,
+    });
+
     Ok(())
 }

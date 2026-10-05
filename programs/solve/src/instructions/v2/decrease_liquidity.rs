@@ -109,5 +109,17 @@ pub fn handler<'info>(
         transfer_memo::TRANSFER_MEMO_DECREASE_LIQUIDITY.as_bytes(),
     )?;
 
+    emit!(crate::events::LiquidityDecreased {
+        solve: ctx.accounts.solve.key(),
+        position: ctx.accounts.position.key(),
+        tick_lower_index: ctx.accounts.position.tick_lower_index,
+        tick_upper_index: ctx.accounts.position.tick_upper_index,
+        liquidity: liquidity_amount,
+        token_a_amount: delta_a,
+        token_b_amount: delta_b,
+        token_a_transfer_fee: transfer_fee_excluded_delta_a.transfer_fee,
+        token_b_transfer_fee: transfer_fee_excluded_delta_b.transfer_fee,
+    });
+
     Ok(())
 }

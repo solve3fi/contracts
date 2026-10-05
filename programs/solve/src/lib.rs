@@ -6,6 +6,7 @@ declare_id!("HnosXNWPvKSFkY6xjUpCJ9nhbvTRhdfNTfWpgp3m4GK");
 pub mod constants;
 #[doc(hidden)]
 pub mod errors;
+pub mod events;
 #[doc(hidden)]
 pub mod instructions;
 #[doc(hidden)]

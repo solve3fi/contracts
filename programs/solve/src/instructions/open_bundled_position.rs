@@ -63,5 +63,12 @@ pub fn handler(
         tick_upper_index,
     )?;
 
+    emit!(crate::events::PositionOpened {
+        solve: solve.key(),
+        position: position.key(),
+        tick_lower_index,
+        tick_upper_index,
+    });
+
     Ok(())
 }

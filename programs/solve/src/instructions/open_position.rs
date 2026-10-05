@@ -65,6 +65,13 @@ pub fn handler(
         tick_upper_index,
     )?;
 
+    emit!(crate::events::PositionOpened {
+        solve: solve.key(),
+        position: position.key(),
+        tick_lower_index,
+        tick_upper_index,
+    });
+
     mint_position_token_and_remove_authority(
         solve,
         position_mint,
