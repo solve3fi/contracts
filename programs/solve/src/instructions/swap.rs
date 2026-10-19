@@ -3,6 +3,7 @@ use anchor_spl::token::{self, Token, TokenAccount};
 
 use crate::{
     errors::ErrorCode,
+    events::POOL_SWAP_HOP_SINGLE,
     manager::swap_manager::*,
     state::Solve,
     util::{to_timestamp_u64, update_and_swap_solve, SparseSwapTickSequenceBuilder},
@@ -97,6 +98,27 @@ pub fn handler(
         return Err(ErrorCode::AmountInAboveMaximum.into());
     }
 
+    let before = PoolSwapBefore::capture(solve, a_to_b);
+    let (input_owner, output_owner) = directed_owners(
+        a_to_b,
+        ctx.accounts.token_owner_account_a.owner,
+        ctx.accounts.token_owner_account_b.owner,
+    );
+    let swapped = pool_swap_event(
+        PoolSwapParties {
+            solve: solve.key(),
+            token_authority: ctx.accounts.token_authority.key(),
+            input_account_owner: input_owner,
+            output_account_owner: output_owner,
+            a_to_b,
+            hop: POOL_SWAP_HOP_SINGLE,
+        },
+        before,
+        &swap_update,
+        0,
+        0,
+    );
+
     update_and_swap_solve(
         solve,
         &ctx.accounts.token_authority,
@@ -108,5 +130,8 @@ pub fn handler(
         swap_update,
         a_to_b,
         timestamp,
-    )
+    )?;
+
+    emit!(swapped);
+    Ok(())
 }

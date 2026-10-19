@@ -24,6 +24,7 @@ Modifications made by Solve3 to the Orca-derived files:
     two-hop-swap and increase-liquidity instructions.
   - Added gauge emissions and an activity gate, stored in the reward-authority bytes of reward slots 1 and 2 of a
     pool that is managed by the governance program.
+  - Added `FeesCollected` and `PoolSwap` events. These layouts are Solve3's own; they are not Orca's `Traded` event.
 
 Files that are entirely Solve3's own work: state/gate.rs, instructions/set_gauge_emissions.rs,
 instructions/burn_unearned_gauge_emissions.rs, instructions/set_trading_pauses.rs.

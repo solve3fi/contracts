@@ -29,6 +29,7 @@ arrays, swap engine, position bundles, Token-2022 support and two-hop swaps are 
 | Default protocol-fee cap | The default protocol fee rate for new pools is capped at 8,000 of 10,000 basis points. |
 | Branding and metadata | SOLV3 position NFT names, symbols and metadata URIs, memo text and `security.txt`. |
 | `fast-epochs` build feature | Test-only build with shortened time buckets for devnet rehearsals. |
+| `FeesCollected` and `PoolSwap` events | Claimed fees and per-swap LP / protocol fees for the fees leaderboard. `emit!` logs, same as the position events. No new accounts. |
 | Toolchain port | Anchor 0.32.1, Solana crates 2.x. |
 
 ## Relationship to the other Solve3 repositories

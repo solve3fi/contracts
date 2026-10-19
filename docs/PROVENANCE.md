@@ -40,6 +40,15 @@ attributes, config feature flags and control flags, and the reward-authority mig
 3. Features that depended on Orca's post-cutoff layout (Solve3's gauge schedule and activity gate were stored in Orca's
    later "extension" area) are being re-implemented on the Apache-era account layout as Solve3's own code.
 
+## Solve3-original fee events
+
+`FeesCollected` and `PoolSwap` (`programs/solve/src/events.rs`) were written for the fees leaderboard and the
+fee quests. They are original Solve3 code. They are not Orca's `Traded` swap event, which was added on 28 February
+2025, after the Apache-2.0 cutoff, and is listed above as excluded. Both use `emit!` (`Program data:` logs), the
+same mechanism as `PositionOpened`, `LiquidityIncreased` and `LiquidityDecreased`, so instruction account lists
+are unchanged. Field order is frozen. `Position` is left at 216 bytes: lifetime claimed-fee counters would need
+an account migration and are not part of this change.
+
 ## Known limits of this record
 
 - It compares source text. It cannot prove that no idea or structure was influenced by Orca's later code.

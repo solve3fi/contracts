@@ -7,9 +7,12 @@ use crate::util::{
     calculate_transfer_fee_excluded_amount, parse_remaining_accounts,
     update_and_two_hop_swap_solve_v2, AccountsType, RemainingAccountsInfo,
 };
+use crate::v2_swap_transfer_fees;
 use crate::{
     constants::transfer_memo,
     errors::ErrorCode,
+    events::{POOL_SWAP_HOP_FIRST, POOL_SWAP_HOP_SECOND},
+    manager::swap_manager::{pool_swap_event, PoolSwapBefore, PoolSwapParties},
     state::Solve,
     util::{to_timestamp_u64, SparseSwapTickSequenceBuilder},
 };
@@ -97,7 +100,6 @@ pub struct TwoHopSwapV2<'info> {
     // - accounts for transfer hook program of token_mint_output
     // - supplemental TickArray accounts for solve_one
     // - supplemental TickArray accounts for solve_two
-
     /// Trading pause switches live in the config's feature flags.
     #[account(address = solve_one.solves_config)]
     pub solves_config: Account<'info, crate::state::SolvesConfig>,
@@ -116,7 +118,11 @@ pub fn handler<'info>(
     remaining_accounts_info: Option<RemainingAccountsInfo>,
 ) -> Result<()> {
     ctx.accounts.solves_config.require_swaps_enabled()?;
-    require_keys_eq!(ctx.accounts.solve_two.solves_config, ctx.accounts.solves_config.key(), ErrorCode::SolvesConfigMismatch);
+    require_keys_eq!(
+        ctx.accounts.solve_two.solves_config,
+        ctx.accounts.solves_config.key(),
+        ErrorCode::SolvesConfigMismatch
+    );
     let clock = Clock::get()?;
     // Update the global reward growth which increases as a function of time.
     let timestamp = to_timestamp_u64(clock.unix_timestamp)?;
@@ -387,6 +393,82 @@ pub fn handler<'info>(
     )
     */
 
+    // v2 two-hop accounts are already ordered input → intermediate → output.
+    // Leg 1 pays the user input account and receives into the second pool's
+    // intermediate vault. Leg 2 spends that vault (no second input transfer)
+    // and pays the user output account.
+    let (mint_one_a, mint_one_b) = if a_to_b_one {
+        (
+            &ctx.accounts.token_mint_input,
+            &ctx.accounts.token_mint_intermediate,
+        )
+    } else {
+        (
+            &ctx.accounts.token_mint_intermediate,
+            &ctx.accounts.token_mint_input,
+        )
+    };
+    let (mint_two_a, mint_two_b) = if a_to_b_two {
+        (
+            &ctx.accounts.token_mint_intermediate,
+            &ctx.accounts.token_mint_output,
+        )
+    } else {
+        (
+            &ctx.accounts.token_mint_output,
+            &ctx.accounts.token_mint_intermediate,
+        )
+    };
+    let (transfer_fee_in_one, transfer_fee_out_one) = v2_swap_transfer_fees(
+        a_to_b_one,
+        mint_one_a,
+        mint_one_b,
+        swap_update_one.amount_a,
+        swap_update_one.amount_b,
+        true,
+    )?;
+    let (transfer_fee_in_two, transfer_fee_out_two) = v2_swap_transfer_fees(
+        a_to_b_two,
+        mint_two_a,
+        mint_two_b,
+        swap_update_two.amount_a,
+        swap_update_two.amount_b,
+        false,
+    )?;
+
+    let before_one = PoolSwapBefore::capture(solve_one, a_to_b_one);
+    let before_two = PoolSwapBefore::capture(solve_two, a_to_b_two);
+    let authority = ctx.accounts.token_authority.key();
+    let intermediate_owner = ctx.accounts.token_vault_two_intermediate.owner;
+    let swapped_one = pool_swap_event(
+        PoolSwapParties {
+            solve: solve_one.key(),
+            token_authority: authority,
+            input_account_owner: ctx.accounts.token_owner_account_input.owner,
+            output_account_owner: intermediate_owner,
+            a_to_b: a_to_b_one,
+            hop: POOL_SWAP_HOP_FIRST,
+        },
+        before_one,
+        &swap_update_one,
+        transfer_fee_in_one,
+        transfer_fee_out_one,
+    );
+    let swapped_two = pool_swap_event(
+        PoolSwapParties {
+            solve: solve_two.key(),
+            token_authority: authority,
+            input_account_owner: intermediate_owner,
+            output_account_owner: ctx.accounts.token_owner_account_output.owner,
+            a_to_b: a_to_b_two,
+            hop: POOL_SWAP_HOP_SECOND,
+        },
+        before_two,
+        &swap_update_two,
+        transfer_fee_in_two,
+        transfer_fee_out_two,
+    );
+
     update_and_two_hop_swap_solve_v2(
         swap_update_one,
         swap_update_two,
@@ -413,5 +495,9 @@ pub fn handler<'info>(
         &ctx.accounts.memo_program,
         timestamp,
         transfer_memo::TRANSFER_MEMO_SWAP.as_bytes(),
-    )
+    )?;
+
+    emit!(swapped_one);
+    emit!(swapped_two);
+    Ok(())
 }

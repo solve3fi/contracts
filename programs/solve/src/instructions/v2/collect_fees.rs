@@ -2,7 +2,10 @@ use anchor_lang::prelude::*;
 use anchor_spl::memo::Memo;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 
-use crate::util::{parse_remaining_accounts, AccountsType, RemainingAccountsInfo};
+use crate::util::{
+    calculate_transfer_fee_excluded_amount, parse_remaining_accounts, AccountsType,
+    RemainingAccountsInfo,
+};
 use crate::{
     constants::transfer_memo,
     state::*,
@@ -66,9 +69,30 @@ pub fn handler<'info>(
 
     let position = &mut ctx.accounts.position;
 
-    // Store the fees owed to use as transfer amounts.
-    let fee_owed_a = position.fee_owed_a;
-    let fee_owed_b = position.fee_owed_b;
+    // Gross fees debited from the position. The Token-2022 fee is withheld from
+    // the recipient, so the event keeps both numbers.
+    let fee_a = position.fee_owed_a;
+    let fee_b = position.fee_owed_b;
+    let token_a_transfer_fee =
+        calculate_transfer_fee_excluded_amount(&ctx.accounts.token_mint_a, fee_a)?.transfer_fee;
+    let token_b_transfer_fee =
+        calculate_transfer_fee_excluded_amount(&ctx.accounts.token_mint_b, fee_b)?.transfer_fee;
+    let collected = crate::events::FeesCollected {
+        solve: ctx.accounts.solve.key(),
+        position: position.key(),
+        position_mint: position.position_mint,
+        position_authority: ctx.accounts.position_authority.key(),
+        position_token_owner: ctx.accounts.position_token_account.owner,
+        token_owner_account_a: ctx.accounts.token_owner_account_a.key(),
+        token_owner_account_b: ctx.accounts.token_owner_account_b.key(),
+        fee_a,
+        fee_b,
+        token_a_transfer_fee,
+        token_b_transfer_fee,
+        liquidity: position.liquidity,
+        fee_growth_checkpoint_a: position.fee_growth_checkpoint_a,
+        fee_growth_checkpoint_b: position.fee_growth_checkpoint_b,
+    };
 
     position.reset_fees_owed();
 
@@ -80,7 +104,7 @@ pub fn handler<'info>(
         &ctx.accounts.token_program_a,
         &ctx.accounts.memo_program,
         &remaining_accounts.transfer_hook_a,
-        fee_owed_a,
+        fee_a,
         transfer_memo::TRANSFER_MEMO_COLLECT_FEES.as_bytes(),
     )?;
 
@@ -92,9 +116,10 @@ pub fn handler<'info>(
         &ctx.accounts.token_program_b,
         &ctx.accounts.memo_program,
         &remaining_accounts.transfer_hook_b,
-        fee_owed_b,
+        fee_b,
         transfer_memo::TRANSFER_MEMO_COLLECT_FEES.as_bytes(),
     )?;
 
+    emit!(collected);
     Ok(())
 }
