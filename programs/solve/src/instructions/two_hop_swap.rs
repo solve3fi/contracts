@@ -3,6 +3,7 @@ use anchor_spl::token::{self, Token, TokenAccount};
 
 use crate::{
     errors::ErrorCode,
+    events::{POOL_SWAP_HOP_FIRST, POOL_SWAP_HOP_SECOND},
     manager::swap_manager::*,
     state::Solve,
     util::{to_timestamp_u64, update_and_swap_solve, SparseSwapTickSequenceBuilder},
@@ -90,7 +91,11 @@ pub fn handler(
     sqrt_price_limit_two: u128,
 ) -> Result<()> {
     ctx.accounts.solves_config.require_swaps_enabled()?;
-    require_keys_eq!(ctx.accounts.solve_two.solves_config, ctx.accounts.solves_config.key(), ErrorCode::SolvesConfigMismatch);
+    require_keys_eq!(
+        ctx.accounts.solve_two.solves_config,
+        ctx.accounts.solves_config.key(),
+        ErrorCode::SolvesConfigMismatch
+    );
     let clock = Clock::get()?;
     // Update the global reward growth which increases as a function of time.
     let timestamp = to_timestamp_u64(clock.unix_timestamp)?;
@@ -249,6 +254,49 @@ pub fn handler(
         }
     }
 
+    let before_one = PoolSwapBefore::capture(solve_one, a_to_b_one);
+    let before_two = PoolSwapBefore::capture(solve_two, a_to_b_two);
+    let (input_owner_one, output_owner_one) = directed_owners(
+        a_to_b_one,
+        ctx.accounts.token_owner_account_one_a.owner,
+        ctx.accounts.token_owner_account_one_b.owner,
+    );
+    let (input_owner_two, output_owner_two) = directed_owners(
+        a_to_b_two,
+        ctx.accounts.token_owner_account_two_a.owner,
+        ctx.accounts.token_owner_account_two_b.owner,
+    );
+    let authority = ctx.accounts.token_authority.key();
+    // SPL Token has no transfer fee. One event per leg, emitted only after that leg's transfers.
+    let swapped_one = pool_swap_event(
+        PoolSwapParties {
+            solve: solve_one.key(),
+            token_authority: authority,
+            input_account_owner: input_owner_one,
+            output_account_owner: output_owner_one,
+            a_to_b: a_to_b_one,
+            hop: POOL_SWAP_HOP_FIRST,
+        },
+        before_one,
+        &swap_update_one,
+        0,
+        0,
+    );
+    let swapped_two = pool_swap_event(
+        PoolSwapParties {
+            solve: solve_two.key(),
+            token_authority: authority,
+            input_account_owner: input_owner_two,
+            output_account_owner: output_owner_two,
+            a_to_b: a_to_b_two,
+            hop: POOL_SWAP_HOP_SECOND,
+        },
+        before_two,
+        &swap_update_two,
+        0,
+        0,
+    );
+
     update_and_swap_solve(
         solve_one,
         &ctx.accounts.token_authority,
@@ -273,5 +321,9 @@ pub fn handler(
         swap_update_two,
         a_to_b_two,
         timestamp,
-    )
+    )?;
+
+    emit!(swapped_one);
+    emit!(swapped_two);
+    Ok(())
 }

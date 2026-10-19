@@ -43,9 +43,24 @@ pub fn handler(ctx: Context<CollectFees>) -> Result<()> {
 
     let position = &mut ctx.accounts.position;
 
-    // Store the fees owed to use as transfer amounts.
-    let fee_owed_a = position.fee_owed_a;
-    let fee_owed_b = position.fee_owed_b;
+    // Store the fees owed to use as transfer amounts. The event records these gross
+    // amounts, not the post-reset zeroes, and v1 has no Token-2022 transfer fee.
+    let collected = crate::events::FeesCollected {
+        solve: ctx.accounts.solve.key(),
+        position: position.key(),
+        position_mint: position.position_mint,
+        position_authority: ctx.accounts.position_authority.key(),
+        position_token_owner: ctx.accounts.position_token_account.owner,
+        token_owner_account_a: ctx.accounts.token_owner_account_a.key(),
+        token_owner_account_b: ctx.accounts.token_owner_account_b.key(),
+        fee_a: position.fee_owed_a,
+        fee_b: position.fee_owed_b,
+        token_a_transfer_fee: 0,
+        token_b_transfer_fee: 0,
+        liquidity: position.liquidity,
+        fee_growth_checkpoint_a: position.fee_growth_checkpoint_a,
+        fee_growth_checkpoint_b: position.fee_growth_checkpoint_b,
+    };
 
     position.reset_fees_owed();
 
@@ -54,7 +69,7 @@ pub fn handler(ctx: Context<CollectFees>) -> Result<()> {
         &ctx.accounts.token_vault_a,
         &ctx.accounts.token_owner_account_a,
         &ctx.accounts.token_program,
-        fee_owed_a,
+        collected.fee_a,
     )?;
 
     transfer_from_vault_to_owner(
@@ -62,8 +77,9 @@ pub fn handler(ctx: Context<CollectFees>) -> Result<()> {
         &ctx.accounts.token_vault_b,
         &ctx.accounts.token_owner_account_b,
         &ctx.accounts.token_program,
-        fee_owed_b,
+        collected.fee_b,
     )?;
 
+    emit!(collected);
     Ok(())
 }

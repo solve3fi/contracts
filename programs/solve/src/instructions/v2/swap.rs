@@ -9,6 +9,7 @@ use crate::util::{
 use crate::{
     constants::transfer_memo,
     errors::ErrorCode,
+    events::POOL_SWAP_HOP_SINGLE,
     manager::swap_manager::*,
     state::Solve,
     util::{
@@ -65,7 +66,6 @@ pub struct SwapV2<'info> {
     // - accounts for transfer hook program of token_mint_a
     // - accounts for transfer hook program of token_mint_b
     // - supplemental TickArray accounts
-
     /// Trading pause switches live in the config's feature flags.
     #[account(address = solve.solves_config)]
     pub solves_config: Account<'info, crate::state::SolvesConfig>,
@@ -149,6 +149,35 @@ pub fn handler<'info>(
         }
     }
 
+    let before = PoolSwapBefore::capture(solve, a_to_b);
+    let (input_owner, output_owner) = directed_owners(
+        a_to_b,
+        ctx.accounts.token_owner_account_a.owner,
+        ctx.accounts.token_owner_account_b.owner,
+    );
+    let (transfer_fee_in, transfer_fee_out) = v2_swap_transfer_fees(
+        a_to_b,
+        &ctx.accounts.token_mint_a,
+        &ctx.accounts.token_mint_b,
+        swap_update.amount_a,
+        swap_update.amount_b,
+        true,
+    )?;
+    let swapped = pool_swap_event(
+        PoolSwapParties {
+            solve: solve.key(),
+            token_authority: ctx.accounts.token_authority.key(),
+            input_account_owner: input_owner,
+            output_account_owner: output_owner,
+            a_to_b,
+            hop: POOL_SWAP_HOP_SINGLE,
+        },
+        before,
+        &swap_update,
+        transfer_fee_in,
+        transfer_fee_out,
+    );
+
     update_and_swap_solve_v2(
         solve,
         &ctx.accounts.token_authority,
@@ -167,7 +196,10 @@ pub fn handler<'info>(
         a_to_b,
         timestamp,
         transfer_memo::TRANSFER_MEMO_SWAP.as_bytes(),
-    )
+    )?;
+
+    emit!(swapped);
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -243,6 +275,7 @@ pub fn swap_with_transfer_fee_extension<'info>(
             next_reward_infos: swap_update.next_reward_infos,
             next_protocol_fee: swap_update.next_protocol_fee,
             gate_fee_value_b: swap_update.gate_fee_value_b,
+            total_fee_amount: swap_update.total_fee_amount,
         });
     }
 
@@ -294,5 +327,35 @@ pub fn swap_with_transfer_fee_extension<'info>(
         next_reward_infos: swap_update.next_reward_infos,
         next_protocol_fee: swap_update.next_protocol_fee,
         gate_fee_value_b: swap_update.gate_fee_value_b,
+        total_fee_amount: swap_update.total_fee_amount,
     })
+}
+
+/// Token-2022 fees withheld on a v2 swap leg's transfers.
+///
+/// Amounts are the transfer-fee-included figures stored on `PostSwapUpdate`.
+/// `input_transfer_charged` is false for the second leg of `two_hop_swap_v2`:
+/// that leg does not transfer its input again (the intermediate vault-to-vault
+/// transfer is the first leg's output, and its fee is reported there).
+pub fn v2_swap_transfer_fees<'info>(
+    a_to_b: bool,
+    mint_a: &InterfaceAccount<'info, Mint>,
+    mint_b: &InterfaceAccount<'info, Mint>,
+    amount_a: u64,
+    amount_b: u64,
+    input_transfer_charged: bool,
+) -> Result<(u64, u64)> {
+    let (input_mint, output_mint, input_amount, output_amount) = if a_to_b {
+        (mint_a, mint_b, amount_a, amount_b)
+    } else {
+        (mint_b, mint_a, amount_b, amount_a)
+    };
+    let transfer_fee_in = if input_transfer_charged {
+        calculate_transfer_fee_excluded_amount(input_mint, input_amount)?.transfer_fee
+    } else {
+        0
+    };
+    let transfer_fee_out =
+        calculate_transfer_fee_excluded_amount(output_mint, output_amount)?.transfer_fee;
+    Ok((transfer_fee_in, transfer_fee_out))
 }
