@@ -16,12 +16,15 @@ solana-verify verify-from-repo -u https://api.mainnet-beta.solana.com \
   --program-id HnosXNWPvKSFkY6xjUpCJ9nhbvTRhdfNTfWpgp3m4GK \
   https://github.com/solve3fi/contracts \
   --commit-hash <this-commit> \
-  --library-name solve
+  --library-name solve \
+  --base-image solanafoundation/solana-verifiable-build@sha256:6468b89ae21d87b8eb002f894ac3f3442dbd8bcf5ea93414051e96e00d03b5ab
 ```
 
 Run from the repository workspace root. With `solana-verify` 0.5.2, the root
 must be the Docker mount so the container can read the workspace `Cargo.toml`
 and `Cargo.lock`; the library name selects `programs/solve`.
+The explicit image digest is also required by remote workers whose verifier
+version does not yet map Solana CLI `4.1.0` to this image.
 
 The verification PDA upload must be signed by the program upgrade authority,
 `4j3VFftvWC4R2KxbF4R8bJKz2Mxk3m6a2RjkEu8ySVPs`. After uploading it,
