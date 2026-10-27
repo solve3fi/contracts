@@ -7,3 +7,6 @@ exclude = ["**/target"]
 overflow-checks = true
 lto = "fat"
 codegen-units = 1
+
+[workspace.metadata.cli]
+solana = "4.1.0"
