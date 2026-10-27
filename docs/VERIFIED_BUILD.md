@@ -12,12 +12,22 @@ From the workspace root:
 ```sh
 solana-verify build --library-name solve
 solana-verify get-executable-hash target/deploy/solve.so
-solana-verify verify-from-repo -u mainnet-beta \
+solana-verify verify-from-repo -u https://api.mainnet-beta.solana.com \
   --program-id HnosXNWPvKSFkY6xjUpCJ9nhbvTRhdfNTfWpgp3m4GK \
   https://github.com/solve3fi/contracts \
   --commit-hash <this-commit> \
   --library-name solve \
   --mount-path programs/solve
+```
+
+The verification PDA upload must be signed by the program upgrade authority,
+`4j3VFftvWC4R2KxbF4R8bJKz2Mxk3m6a2RjkEu8ySVPs`. After uploading it,
+submit the remote rebuild:
+
+```sh
+solana-verify remote submit-job \
+  --program-id HnosXNWPvKSFkY6xjUpCJ9nhbvTRhdfNTfWpgp3m4GK \
+  --uploader 4j3VFftvWC4R2KxbF4R8bJKz2Mxk3m6a2RjkEu8ySVPs
 ```
 
 The deployed binary embeds an outdated `security.txt` source URL. Changing
