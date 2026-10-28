@@ -2,6 +2,12 @@
 
 Program: `HnosXNWPvKSFkY6xjUpCJ9nhbvTRhdfNTfWpgp3m4GK`
 
+OtterSec reported this mainnet program verified on October 28, 2026. Its
+on-chain and rebuilt executable hashes both equal
+`9786ac86815ad7ad3032c76fb6f67ef33c2f57c0304aced8bae421ccf922fe44`.
+The verified source commit is `2d401c941b5ee23d820fbc94fefe0acf5f78cd3f`.
+Status: https://verify.osec.io/status/HnosXNWPvKSFkY6xjUpCJ9nhbvTRhdfNTfWpgp3m4GK
+
 The mainnet executable deployed at slot `458181137` matches a build of this
 repository's `solve` library using the committed `Cargo.lock` and Solana
 verifiable-build image for CLI `4.1.0`. Its `solana-verify` executable hash is
